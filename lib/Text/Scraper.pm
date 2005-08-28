@@ -2,7 +2,8 @@ package Text::Scraper;
 
 use strict;
 use Carp;
-our $VERSION = '0.01';
+
+our $VERSION = '0.02';
 
 =pod
 
@@ -17,12 +18,21 @@ Text::Scraper - Structured data from (un)structured text
     use LWP::Simple;
     use Data::Dumper;
 
+    #
+    # 1. Get our template and source text
+    #
     my $tmpl = Text::Scraper->slurp(\*DATA);
     my $src  = get('http://search.cpan.org/recent') || die $!;
     
+    #
+    # 2. Extract data from source
+    #
     my $obj  = Text::Scraper->new(tmpl => $tmpl);
     my $data = $obj->scrape($src);
 
+    #
+    # 3. Do something really neat...(left as excercise)
+    #
     print "Newest Submission: ", $data->[0]{submissions}[0]{name},  "\n\n";
     print "Scraper model:\n",    Dumper($obj),                      "\n\n";
     print "Parsed  model:\n",    Dumper($data) ,                    "\n\n";
@@ -48,19 +58,22 @@ Text::Scraper - Structured data from (un)structured text
 =head1 ABSTRACT
 
 Text::Scraper provides a fully functional base-class to quickly develop 
-Screen-Scrapers and other text extraction tools. Using templates, the 
-programmer is freed from staring at fragile, heavily escaped regular 
-expressions, mapping capture groups to named variables or wrestling with 
-badly formed HTML. Machine generated output such as dynamic webpages are 
-trivially reverse engineered. 
+I<Screen-Scrapers> and other text extraction tools. Programmatically 
+generated text such as dynamic webpages are trivially reversed engineered.
+
+Using templates, the programmer is freed from staring at fragile, heavily 
+escaped regular expressions, mapping capture groups to named variables or 
+wrestling with the DOM and badly formed HTML. In addition, extracted data 
+can be hierarchical, which is beyond the capabilities of vanilla regular 
+expressions.
 
 Text::Scraper's functionality overlaps some existing CPAN modules - 
 L<Template::Extract|Template::Extract> and L<WWW::Scraper|WWW::Scraper>.
 
-Text::Scraper is significantly more lightweight than either. It  has no 
-dependencies on other frameworks, modules or design-decisions and has a 
-more general application domain than the latter. Text::Scraper already 
-benchmarks around I<250% faster> than Template::Extract and uses 
+Text::Scraper is much more lightweight than either and has a 
+more general application domain than the latter. It  has no dependencies on 
+other frameworks, modules or design-decisions. On average, Text::Scraper 
+benchmarks around I<250% faster> than Template::Extract - and uses 
 significantly less memory.
 
 Unlike both existing modules, Text::Scraper generalizes its functionality 
@@ -77,14 +90,18 @@ back out of the surrounding presentation.
 
 If you are familiar with templating concepts, then the L<SYNOPSIS> should be sufficient 
 to get you started. If not, I would recommend reading the documentation for 
-L<HTML::Template|HTML::Template::SYNTAX> - a module thats syntax and terminology is very 
+L<HTML::Template|HTML::Template> - a module thats syntax and terminology is very 
 similar to Text::Scraper's.
 
 =head1 DESCRIPTION
 
 Template Tags are classed as I<Leaves> or I<Branches>. Like XML, Branches must 
-have an associated closing tag, Leaves must not. The default syntax is 
-based on the XML preprocessor syntax:
+have an associated closing tag, Leaves must not. By default, Leaf nodes return 
+SCALARs and Branch nodes return ARRAYs of HASHes - each array element mapping 
+to a matched sub-sequence. Blessing or filtering this data is left as an 
+exercise for subclasses.
+
+The default syntax is based on the XML preprocessor syntax:
 
     <?tmpl TYPE NAME [ATTRIBUTES] ?>
     
@@ -104,47 +121,44 @@ as quotation delimiters:
 The only attribute acted on by the default tag classes is C<regex> - used to refine how 
 the Tag is translated into a regular-expression capture group:
 
-    <?tmpl var naive_email_address  regex="([\w\d\.]+\@[\w\d\.]+?)"  ?>
+    <?tmpl var naiveEmailAddress  regex="([\w\d\.]+\@[\w\d\.]+)"  ?>
 
 This can be used to further filter the parsed data - similar to using grep:
 
-    <?tmpl var foocom_email_address regex="([\w\d\.]+@(?:foo\.com))" ?>
+    <?tmpl var onlyFoocomEmailAddresses regex="([\w\d\.]+@(?:foo\.com))" ?>
 
 Each tag should create I<only one> capture group - but it is fine to make the outer 
 group non-capturing:
 
-    <?tmpl var date_just_month regex="(?:\d+ (\S+) \d+)" ?>
+    <?tmpl var dateJustMonth regex="(?:\d+ (\S+) \d+)" ?>
 
-The above would capture only the month field in dates formated as C<02 July 1979>.
+I<The above would capture only the month field in dates formated as> C<02 July 1979>.
 
 =head2 Default Tags
 
 The default tags provided by Text::Scraper are typical for basic scraping but can be 
-subclassed for additional functionality. By default, Leaf nodes return Scalars and 
-Branch nodes return Arrays of Hashes - each element mapping to a matching sub-sequence. 
-Blessing or filtering this data is left as an exercise for subclasses.
-
-All the default tags are demonstrated in the L<SYNOPSIS>:
+subclassed for additional functionality. All the default tags are demonstrated in the 
+L<SYNOPSIS>:
 
 =over 4
 
-=item var
+=item B<var>
 
 Vars represent strings of text in a template. They are instances of 
 C<Text::Scraper::Leaf>.
 
-=item stuff
+=item B<stuff>
 
 Stuff tags represent spans of text that are of no interest in the 
 extracted data, but can ease parsing in certain situations. They are instances 
 of C<Text::Scraper:Ignorable> - a subclass of C<Text::Scraper::Leaf>.
 
-=item loop
+=item B<loop>
 
 Loops represent repeated information in a template and are extracted as an 
 array of hashes. They are instances of C<Text::Scraper::Branch>.
 
-=item if
+=item B<if>
 
 A conditional region in the template. If not present, the parent scope  
 will contain a false value under the tags name. Otherwise the value will be true 
@@ -154,9 +168,9 @@ These are instances of C<Text::Scraper::Conditional>.
 
 =back
 
-=head2 Text::Scraper API
+=head1 User API
 
-These methods are sufficient for a basic scraping session:
+These methods alone are sufficient for a basic scraping session:
 
 =cut
 
@@ -168,7 +182,7 @@ sub TRACE () {0;}
 
 =pod
 
-=head3 C<< Text::Scraper->slurp( STRING|GLOBREF ) >>
+=head2 C<< my $string = Text::Scraper->slurp( STRING|GLOBREF ) >>
 
 Static utility method to return either a filename or filehandle as a string
 
@@ -197,17 +211,17 @@ sub slurp
 
 =pod
 
-=head3 C<< Text::Scraper->new(HASH) >>
+=head2 C<< my $object = Text::Scraper->new(HASH) >>
 
 Returns a new Text::Scraper object. Optional parameters are:
 
 =over 4
 
-=item tmpl SCALAR
+=item B<tmpl>
 
-A template as a scalar string
+A template as a string
 
-=item syntax SCALAR
+=item B<syntax>
 
 A Text::Scraper::Syntax instance. See L<Defining a custom syntax>.
 
@@ -234,9 +248,17 @@ sub new
     return $self;
 }
 
+sub DESTROY
+{
+    my $self = shift;
+    $self->on_destroy();
+    delete $protos{$self};
+    return;
+}
+
 =pod
 
-=head3 C<< $obj->compile(STRING) >>
+=head2 C<< $obj->compile(STRING) >>
 
 Only required for recompilation or if no B<tmpl> parameter is passed to the constructor.
 
@@ -326,9 +348,9 @@ sub parse_attr
 
 =pod
 
-=head3 C<< $obj->scrape(STRING) >>
+=head2 C<< my $data = $obj->scrape(STRING) >>
 
-Extract data from STRING based on template.
+Extract data from STRING based on compiled template.
 
 =cut
 
@@ -376,49 +398,52 @@ sub scrape
 
 =pod
 
-=head2 Subclass API
+=head1 Subclass API
 
-In addition to inheriting the above methods, certain hooks are available 
-to subclasses:
+Text::Scraper allows its users to define custom tags and bless captured 
+data into custom classes. Because Text::Scraper objects are prototype 
+based, a subclass can both inherit the scraping logic and also encapsulate 
+any particular instance of the scraped data.
 
-=head3 C<< $subclass->on_create() >>
+During template compilation, a single instance of each tag type is created 
+as the I<prototype object>. Its attributes will be related to the tag, any 
+supplied tag attributes, etc. During scraping, each prototype is invoked 
+to scrape the relevent I<sub-text> against its I<sub-template>.
+
+=head2 C<< $subclass->on_create() >>
 
 General construction callback. Text::Scraper objects are prototype based so 
-overriding the constructor is not recommended. Objects are hash based and 
-any constructor arguments become attributes of the new instance before 
-invoking this method.
+overriding the constructor is not recommended. Objects are hash based; any 
+constructor arguments become attributes of the new instance before invoking 
+this method.
 
-=head3 C<< $subclass->on_data(SCALAR) >> 
+=head2 C<< $subclass->on_destroy() >>
 
-This is the subclasses opertunity to bless or otherwise process any parsed data.
+General destruction callback. Text::Scraper uses the DESTROY hook so any 
+custom functionality is best implemented here.
 
-Because Text::Scraper objects are prototype based, a subclass can inherit the 
-scraping logic and also encapsulate any particular instance of the scraped data.
-During I<compilation>, an instance of each tag type is created as the 
-prototype object. Its attributes will be related to the tag, its sub-template 
-and any user-supplied tag attributes. During I<scraping>, each prototype node is 
-invoked to scrape its own portion of the input text against its sub-template. 
-The return value from C<on_data> is added to the generated output data-structure.
-By default these values are just returned unblessed.
+=head2 C<< $subclass->on_data(SCALAR) >> 
 
-Prototypes can easily bless captured data into the same class, for example:
+This is the subclasses opportunity to bless or otherwise process any parsed 
+data. The return value from C<on_data> is added to the generated output 
+data-structure. By default these values are just returned unblessed.
 
-=over 4
+The SCALAR argument depends on the class of tag. For C<Text::Scraper::Leaf> 
+subclasses, SCALAR will be the matched text. For C<Text::Scraper::Branch> 
+subclasses, SCALAR will be a reference to an array of hashes. Below is an 
+example of two custom tag classes that bless captured data into the same 
+class:
 
-=item C<Text::Scraper::Leaf>
-
-SCALAR is the captured text.
-
+    package Myleaf; 
+    use base "Text::Scraper::Leaf";
     sub on_data
     {
         my ($self, $match) = @_;
         return $self->new(value => $match);
     }
 
-=item C<Text::Scraper::Branch>
-
-SCALAR will be a reference to an array of hashes.
-
+    package MyBranch; 
+    use base "Text::Scraper::Branch";
     sub on_data
     {
         my ($self, $matches) = @_;
@@ -426,27 +451,24 @@ SCALAR will be a reference to an array of hashes.
         return $matches;
     }
 
-=back
-
-=head3 C<< $subclass->to_regex() >>
+=head2 C<< my $regex = $subclass->to_regex() >>
 
 Returns this nodes representation as a regular expression, to be used 
 in a compiled template. If you find yourself using a particular regex 
-attribute a lot, it will be easier to define a custom tag that overloads 
+attribute a lot, it might be easier to define a custom tag that overloads 
 this method.
 
-=head3 C<< $subclass->ignore() >>
+=head2 C<< my $boolean = $subclass->ignore() >>
 
 Returns a boolean value stating whether the parser should ignore the data 
 captured by this object.
 
-=head3 C<< $subclass->proto() $subclass->proto(SCALAR) >>
+=head2 C<< $subclass->proto() $subclass->proto(SCALAR) >>
 
 Utility method to allow Tag instances to access (attributes of) their prototype. 
 This can be safely called from a prototype object, which just points to itself.
-By default, data instances are not blessed and cannot use this method. 
 
-=head3 C<< $subclass->nodes() >>
+=head2 C<< my @children = $subclass->nodes() >>
 
 Returns instance data I<in-order>, including any present conditional data. 
 
@@ -458,6 +480,11 @@ sub on_data
 }
 
 sub on_create
+{
+    my $self = shift;
+}
+
+sub on_destroy
 {
     my $self = shift;
 }
@@ -725,7 +752,7 @@ the scope of this documentation.
 
 L<Data::Dumper|Data::Dumper> can be indespensible in following the success of 
 your scraping. It can be safely applied to a Text::Scraper instance to analyze 
-the parser's object model, or to the return value from a scrape() invokation 
+the parser's object model, or to the return value from a C<scrape()> invokation 
 to analyze what was parsed.
 
 Bug reports and suggestions welcome.

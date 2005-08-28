@@ -2,8 +2,8 @@ Text-Scraper README
 ===================
 
 Text::Scraper is a fast, efficient and convenient alternative 
-to using regular expressions to extract structured data from 
-webpages and other text sources.
+to using plain regular expressions to extract structured data 
+from webpages and other text sources.
 
 See POD for details.
 
